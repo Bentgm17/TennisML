@@ -1,29 +1,23 @@
 import docker
 from psycopg2 import connect
+import pandas as pd
 
 table_name = "player_v"
 
 # declare connection instance
 conn = connect(
-    dbname = "uts-database",
-    user = "tcb",
-    host = "127.0.0.1",
-    password = "tcb"
+    dbname = "tcb",
+    user="postgres",
+    host="localhost",
+    port=5432,
+    password="postgres"
+    
 )
-
-# declare a cursor object from the connection
 cursor = conn.cursor()
+# df = pd.read_sql_query("SELECT date FROM tcb.match WHERE date between '2015-01-01' and '2021-12-31' LIMIT 20",con=conn)
+cursor.execute("CREATE TABLE new_table AS (SELECT MA.date,match_id,winner_id,loser_id,score FROM tcb.match MA WHERE MA.date between '2015-01-01' and '2021-12-31');")
+df = pd.read_sql_query("SELECT NT.date,NT.winner_id,NT.match_id,MT.surface,NT.score FROM new_table NT,tcb.match as MT WHERE NT.match_id=MT.match_id",con=conn)
 
-# execute an SQL statement using the psycopg2 cursor object
-cursor.execute("SELECT goat_rank, name,twitter, goat_points FROM player_v ORDER BY goat_points DESC NULLS LAST LIMIT 20;")
+print(df)
 
-# enumerate() over the PostgreSQL records
-for i, record in enumerate(cursor):
-    print ("\n", type(record))
-    print ( record )
-
-# close the cursor object to avoid memory leaks
-cursor.close()
-
-# close the connection as well
 conn.close()
