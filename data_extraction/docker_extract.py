@@ -14,27 +14,10 @@ conn = connect(
     
 )
 cursor = conn.cursor()
-cursor.execute("CREATE TABLE new_table AS (SELECT MA.date,match_id,winner_id,loser_id FROM tcb.tournament_event TE,tcb.match MA where TE.tournament_id=MA.tournament_event_id and TE.date between '2015/01/01' and '2021/12/31');")
-df = pd.read_sql_query("SELECT NT.date,NT.winner_id,NT.match_id,MT.surface FROM new_table NT,tcb.match as MT WHERE NT.match_id=MT.match_id",con=conn)
-print(df.drop_duplicates())
-# declare a cursor object from the connection
+# df = pd.read_sql_query("SELECT date FROM tcb.match WHERE date between '2015-01-01' and '2021-12-31' LIMIT 20",con=conn)
+cursor.execute("CREATE TABLE new_table AS (SELECT MA.date,match_id,winner_id,loser_id,score FROM tcb.match MA WHERE MA.date between '2015-01-01' and '2021-12-31');")
+df = pd.read_sql_query("SELECT NT.date,NT.winner_id,NT.match_id,MT.surface,NT.score FROM new_table NT,tcb.match as MT WHERE NT.match_id=MT.match_id",con=conn)
 
+print(df)
 
-# execute an SQL statement using the psycopg2 cursor object
-# cursor.execute("SELECT goat_rank, name,twitter, goat_points FROM player_v ORDER BY goat_points DESC NULLS LAST LIMIT 20;")
-# cursor.execute("SELECT DISTINCT name,tournament_id FROM tcb.tournament_event WHERE date between '2015/01/01' and '2021/12/31';")
-# cursor.execute("CREATE TABLE new_table AS (SELECT match_id,winner_id,loser_id FROM tcb.tournament_event TE,tcb.match MA where TE.tournament_id=MA.tournament_event_id and TE.date between '2015/01/01' and '2021/12/31');")
-# cursor.execute("SELECT NT.winner_id,NT.match_id,MT.surface FROM new_table NT,tcb.match as MT WHERE NT.match_id=MT.match_id")
-
-# cursor.execute("SELECT match_id,winner_id,loser_id FROM tcb.tournament_event TE,tcb.match MA where TE.tournament_id=MA.tournament_event_id and TE.date between '2015/01/01' and '2021/12/31';")
-
-# tables=[]
-# # enumerate() over the PostgreSQL records
-# for i, record in enumerate(cursor):
-#     print(record)
-
-# # close the cursor object to avoid memory leaks
-# cursor.close()
-
-# close the connection as well
 conn.close()
