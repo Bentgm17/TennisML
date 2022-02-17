@@ -5,17 +5,18 @@ table_name = "player_v"
 
 # declare connection instance
 conn = connect(
-    dbname = "uts-database",
-    user = "tcb",
-    host = "127.0.0.1",
-    password = "tcb"
+    dbname = "tcb",
+    user = "postgres",
+    host = "localhost",
+    port=5432,
+    password = "postgres"
 )
 
 # declare a cursor object from the connection
 cursor = conn.cursor()
 
 # execute an SQL statement using the psycopg2 cursor object
-cursor.execute("SELECT goat_rank, name,twitter, goat_points FROM player_v ORDER BY goat_points DESC NULLS LAST LIMIT 20;")
+cursor.execute("SELECT goat_rank, name,twitter, goat_points FROM tcb.player_v ORDER BY goat_points DESC NULLS LAST LIMIT 20;")
 
 # enumerate() over the PostgreSQL records
 for i, record in enumerate(cursor):
