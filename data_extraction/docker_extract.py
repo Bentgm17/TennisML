@@ -71,8 +71,14 @@ class ExtractData():
     def get_match_details(self,match_id):
         df = pd.read_sql_query("SELECT M.outcome,M.match_id,M.date,P1.first_name,P1.last_name,P2.first_name,P2.last_name from tcb.player P1, tcb.player P2, tcb.match M WHERE M.match_id={match_id} and P1.player_id=M.winner_id and P2.player_id=M.loser_id".format(match_id=match_id),con=self.conn)
         return df
-
-    
-
+        
     def close_conn(self):
         self.conn.close()
+
+if __name__ == "__main__":
+    class_data=ExtractData()
+    # print(class_data.get_match_details(80931))
+
+    kwargs={'date':'2000-01-01->2020-12-31'}
+    df=class_data.gen_match_data(**kwargs)
+    df.to_csv('test_dataframe1.csv')
