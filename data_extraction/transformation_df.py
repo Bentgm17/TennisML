@@ -1,5 +1,5 @@
 import pandas as pd
-
+import docker_extract
 
 class Transformation():
 
@@ -20,7 +20,7 @@ class Transformation():
         self.compute_break_points_faced_per_set(),self.compute_service_games_won(),self.compute_sv_games_lost_per_set()
         self.compute_ip_return_points(),self.compute_points_won_per_return_game(),self.compute_bp_per_game()
         self.compute_bp_per_set(),self.compute_return_games_won(),self.compute_return_games_won_per_set()
-        self.compute_games_won(),self.compute_game_dominance(),self.compute_break_ratio()
+        self.compute_games_won(),self.compute_game_dominance(),self.compute_break_ratio(),self.compute_winning_percentage()
 
     
     def add_percentage_condition(self,column1,column2):
@@ -154,6 +154,17 @@ class Transformation():
     def compute_break_ratio(self):
         self.new_df['w_br_ratio'],self.new_df['l_br_ratio']=self.new_df['w_bp_w']/self.new_df['l_bp_w'],self.new_df['l_bp_w']/self.new_df['w_bp_w']
 
+    def compute_winning_percentage(self):
+        self.new_df['w_win_p']=1/(1+10**((self.df["loser_elo_rating"] - self.df['winner_elo_rating'])/400))
+        self.new_df['l_win_p']=1-self.new_df['w_win_p']
+        self.add_percentage_condition('w_win_p','l_win_p')
+
+    def compute_elo_ranking_surface_indoor(self):
+        self.df = self.df['surface'].map({'G':"grass", 'C':"clay", 'Cp':"carpet", 'H':"hard"})
+        self.df = self.df['indoor'].map({True : 'indoor', False : 'outdoor'})
+        self.new_df['w_sv_elo'],self.new_df['w_i_o_elo']=docker_extract.get_elo_rating(self.df[['winner_id','date','surface','indoor']])
+        self.new_df['w_sv_elo'],self.new_df['w_i_o_elo']=docker_extract.get_elo_rating(self.df[['loser_id','date','surface','indoor']])
+
     def clean(self):
         condition_df=pd.DataFrame([])
         for condition in self.new_df_cond:
@@ -164,6 +175,5 @@ class Transformation():
         self.clean()
         return self.new_df
 
-    
 
-    
+
