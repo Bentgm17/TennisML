@@ -13,7 +13,7 @@ class Transformation():
         self.new_df_cond=[]
     
     def __call__(self):
-        self.copy_match_and_playerid(),self.compute_elo_ranking_surface_indoor(),self.compute_ace(),self.compute_df(),self.compute_total_points(),self.compute_points_won_on_serve()
+        self.correct_wrong_rows(),self.copy_match_and_playerid(),self.compute_elo_ranking_surface_indoor(),self.compute_ace(),self.compute_df(),self.compute_total_points(),self.compute_points_won_on_serve()
         self.compute_points_won_on_first_serve(),self.compute_points_won_on_second_serve(),self.compute_break_points_saved()
         self.compute_return_points_won_on_return_first_serve(),self.compute_return_points_won_on_return_second_serve()
         self.compute_break_points_won(),self.compute_return_points_won(),self.compute_point_dominance()
@@ -106,7 +106,7 @@ class Transformation():
         self.add_percentage_condition('w_df_2nd_sv','l_df_2nd_sv')
         
     def compute_aces_per_df(self):
-        self.new_df['w_ace_df_ratio'],self.new_df['l_ace_df_ratio']=self.df['w_ace']/self.df['w_df'],self.df['l_ace']/self.df['l_df']
+        self.new_df['w_ace_df_ratio'],self.new_df['l_ace_df_ratio']=(self.new_df['w_ace'] / self.new_df['w_df']).replace((np.nan,np.inf, -np.inf), (0,0,0)),(self.new_df['l_ace'] / self.new_df['l_df']).replace((np.nan,np.inf, -np.inf), (0,0,0))
 
     def compute_first_serve_efficiency(self):
         self.new_df['w_1st_sv_eff'],self.new_df['l_1st_sv_eff']=self.new_df['w_1st_w']/self.new_df['w_2nd_w'],self.new_df['l_1st_w']/self.new_df['l_2nd_w']
@@ -156,15 +156,24 @@ class Transformation():
         self.add_percentage_condition('w_gm_w','l_gm_w')
 
     def compute_game_dominance(self):
-        self.new_df['w_g_dominance'],self.new_df['l_g_dominance']=self.new_df['w_r_game_w']/self.new_df['l_r_game_w'],self.new_df['l_r_game_w']/self.new_df['w_r_game_w']
+        self.new_df['w_g_dominance'],self.new_df['l_g_dominance']=(self.new_df['w_r_game_w'] / self.new_df['l_r_game_w']).replace((np.nan,np.inf, -np.inf), (0,0,0)),(self.new_df['l_r_game_w'] / self.new_df['w_r_game_w']).replace((np.nan,np.inf, -np.inf), (0,0,0))
 
     def compute_break_ratio(self):
-        self.new_df['w_br_ratio'],self.new_df['l_br_ratio']=self.new_df['w_bp_w']/self.new_df['l_bp_w'],self.new_df['l_bp_w']/self.new_df['w_bp_w']
+        self.new_df['w_br_ratio'],self.new_df['l_br_ratio']=(self.new_df['w_bp_w'] / self.new_df['l_bp_w']).replace((np.nan,np.inf, -np.inf), (0,0,0)),(self.new_df['l_bp_w'] / self.new_df['w_bp_w']).replace((np.nan,np.inf, -np.inf), (0,0,0))
 
     def compute_winning_percentage(self):
         self.new_df['w_win_p']=1/(1+10**((self.df["loser_elo_rating"] - self.df['winner_elo_rating'])/400))
         self.new_df['l_win_p']=1-self.new_df['w_win_p']
         self.add_percentage_condition('w_win_p','l_win_p')
+    
+    def correct_wrong_rows(self):
+        df_dict=self.df.to_dict('records')
+        for i,row in enumerate(df_dict):
+            if df_dict[i]['w_1st_won']/df_dict[i]['w_1st_in']>1:
+                df_dict[i]['w_sv_pt'],df_dict[i]['w_1st_in'],df_dict[i]['w_1st_won'],df_dict[i]['w_2nd_won']=df_dict[i]['w_1st_won']+df_dict[i]['w_2nd_won'],df_dict[i]['w_1st_won'],df_dict[i]['w_1st_in'],df_dict[i]['w_sv_pt']-df_dict[i]['w_1st_in']
+                df_dict[i]['l_sv_pt'],df_dict[i]['l_1st_in'],df_dict[i]['l_1st_won'],df_dict[i]['l_2nd_won']=df_dict[i]['l_1st_won'],df_dict[i]['l_1st_in'],df_dict[i]['l_sv_pt']-df_dict[i]['l_1st_in'],df_dict[i]['l_1st_won']+df_dict[i]['l_2nd_won']
+        self.df=pd.DataFrame(df_dict)
+        return self.df
 
     def map_columns(self,surface,indoor):
         surface=surface.map({"G":"grass","H":"hard","C":"clay","P":"carpet"})
