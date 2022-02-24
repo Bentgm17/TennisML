@@ -1,4 +1,5 @@
 from re import S
+from unicodedata import name
 import pandas as pd
 from docker_extract import ExtractData
 import os
@@ -209,7 +210,5 @@ class Transformation():
     def get_dataframe(self):
         self.clean()
         return self.new_df
-
-
 
 
