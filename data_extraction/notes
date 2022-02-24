@@ -1,0 +1,42 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LinearRegression 
+from sklearn.model_selection import train_test_split 
+from sklearn import metrics
+import os
+%matplotlib inline
+parent_dir=os.path.dirname(os.getcwd())
+
+df=pd.read_csv(os.path.join(parent_dir,"test_dataframe.csv"))
+
+df.tournament_event_id
+plt.scatter(df.winner_age, df.winner_rank)
+
+# winner_age=df.winner_age.values
+print(df.loc[df['winner_age'] == ''].count().iloc[0])
+print(df.loc[df['loser_age'] == ''].count().iloc[0])
+
+np.any(np.isnan(df))
+# np.all(np.isfinite(df))
+
+winner_age=df.winner_age.values.reshape(-1,1)
+loser_age=df.loser_age.values.reshape(-1,1)
+X_train, X_test, y_train, y_test = train_test_split(winner_age,loser_age, test_size=0.2, random_state=0)
+reg = LinearRegression().fit(X_train, y_train)
+print(reg.score(X_train, y_train))
+y_pred = reg.predict(X_test)
+print(reg.intercept_)
+print(reg.coef_)
+
+plt.scatter(X_test, y_test,  color='gray')
+plt.plot(X_test, y_pred, color='red', linewidth=2)
+plt.show()
+
+df_wta_players = pd.read_csv(os.path.join(parent_dir,"tennis_wta-master\wta_players.csv"))
+df_wta_ranking = pd.read_csv(os.path.join(parent_dir,"tennis_wta-master\wta_rankings_10s.csv"))
+
+df_wta_playersrank_10s = pd.merge(df_wta_ranking, df_wta_players[["name_first", "name_last", "player_id"]], left_on = "player", right_on = "player_id")
+df_wta_playersrank_10s_ht = pd.merge(df_wta_playersrank_10s, df[["winner_id", "winner_ht"]], left_on = "player", right_on = "winner_id" )
+display(df_wta_playersrank_10s_ht)
+
