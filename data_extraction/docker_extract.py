@@ -41,13 +41,6 @@ class ExtractData():
             a formatted string which represents the related adress
         """
         self.conn = create_engine('postgresql://postgres:postgres@localhost:5432/tcb')
-    #     self.conn = connect(
-    #     dbname = "tcb",
-    #     user="postgres",
-    #     host="localhost",
-    #     port=5432,
-    #     password="postgres"   
-    # )
 
     def gen_match_data(self,**kwargs):
         """
@@ -74,7 +67,7 @@ class ExtractData():
         return df
 
     def get_match_details(self,match_id):
-        df = pd.read_sql_query("SELECT M.outcome,M.match_id,M.date,P1.first_name,P1.last_name,P2.first_name,P2.last_name from tcb.player P1, tcb.player P2, tcb.match M WHERE M.match_id={match_id} and P1.player_id=M.winner_id and P2.player_id=M.loser_id".format(match_id=match_id),con=self.conn)
+        df = pd.read_sql_query("SELECT M.outcome,M.match_iyd,M.date,P1.first_name,P1.last_name,P2.first_name,P2.last_name from tcb.player P1, tcb.player P2, tcb.match M WHERE M.match_id={match_id} and P1.player_id=M.winner_id and P2.player_id=M.loser_id".format(match_id=match_id),con=self.conn)
         return df
 
 
