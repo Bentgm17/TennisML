@@ -3,6 +3,10 @@ from unicodedata import name
 import docker
 from psycopg2 import connect
 import pandas as pd
+from sqlalchemy import create_engine
+import numpy as np
+from tqdm import tqdm
+
 
 table_name = "player_v"
 
@@ -36,13 +40,14 @@ class ExtractData():
         adress : str
             a formatted string which represents the related adress
         """
-        self.conn = connect(
-        dbname = "tcb",
-        user="postgres",
-        host="localhost",
-        port=5432,
-        password="postgres"   
-    )
+        self.conn = create_engine('postgresql://postgres:postgres@localhost:5432/tcb')
+    #     self.conn = connect(
+    #     dbname = "tcb",
+    #     user="postgres",
+    #     host="localhost",
+    #     port=5432,
+    #     password="postgres"   
+    # )
 
     def gen_match_data(self,**kwargs):
         """
@@ -72,5 +77,11 @@ class ExtractData():
         df = pd.read_sql_query("SELECT M.outcome,M.match_id,M.date,P1.first_name,P1.last_name,P2.first_name,P2.last_name from tcb.player P1, tcb.player P2, tcb.match M WHERE M.match_id={match_id} and P1.player_id=M.winner_id and P2.player_id=M.loser_id".format(match_id=match_id),con=self.conn)
         return df
 
+
+    def get_elo_rating(self,df):
+        df.to_sql('player_match_factors', self.conn,if_exists='replace')
+        result=pd.read_sql_query("SELECT PMF.surface,PMF.indoor,PMF.date,PER.* FROM tcb.player_elo_ranking PER, player_match_factors PMF WHERE PER.rank_date=PMF.date and PER.player_id=PMF.player_id",con=self.conn)  
+        return result
+        
     def close_conn(self):
         self.conn.close()
