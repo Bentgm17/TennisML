@@ -14,7 +14,11 @@ class Transformation():
         self.new_df_cond=[]
     
     def __call__(self):
-        self.correct_wrong_rows(),self.copy_match_and_playerid(),self.compute_elo_ranking_surface_indoor(),self.compute_ace(),self.compute_df(),self.compute_total_points(),self.compute_points_won_on_serve()
+        self.correct_wrong_rows()
+        self.copy_match_and_playerid()
+        self.compute_elo_ranking_surface_indoor()
+        self.compute_ace()
+        self.compute_df(),self.compute_total_points(),self.compute_points_won_on_serve()
         self.compute_points_won_on_first_serve(),self.compute_points_won_on_second_serve(),self.compute_break_points_saved()
         self.compute_return_points_won_on_return_first_serve(),self.compute_return_points_won_on_return_second_serve()
         self.compute_break_points_won(),self.compute_return_points_won(),self.compute_point_dominance()
@@ -188,12 +192,12 @@ class Transformation():
         surface_rank,surface_elo,indoor_rank,indoor_elo=self.map_columns(df['surface'],df['indoor'])
         for i,row in enumerate(df_dict):
             sf_rank.append(row[surface_rank[i]]),sf_elo.append(row[surface_elo[i]]),i_o_rank.append(row[indoor_rank[i]]),i_o_elo_rank.append(row[indoor_elo[i]])
-        return pd.DataFrame({'player_id':df['player_id'].copy(),'date':df['date'].copy(),w_l[0]+'_sf_rank':sf_rank,w_l+'_sf_elo':sf_elo,w_l+'_i_o_rank':i_o_rank,w_l+'_i_o_elo_rank':i_o_elo_rank})
+        return pd.DataFrame({'match_id':df['match_id'].copy(),'player_id':df['player_id'].copy(),'date':df['date'].copy(),w_l[0]+'_sf_rank':sf_rank,w_l+'_sf_elo':sf_elo,w_l+'_i_o_rank':i_o_rank,w_l+'_i_o_elo_rank':i_o_elo_rank})
         
     def compute_rank_elo(self,extract_data,w_l):
-        l_elo_df=extract_data.get_elo_rating(self.df[[w_l+'_id','date','surface','indoor']].rename(columns={w_l+"_id": "player_id"}))
+        l_elo_df=extract_data.get_elo_rating(self.df[['match_id',w_l+'_id','date','surface','indoor']].rename(columns={w_l+"_id": "player_id"}))
         surface_indoor_rank_elo=self.compute_corresponding_rank_elo_rating(l_elo_df,w_l)
-        self.new_df=pd.merge(self.new_df,surface_indoor_rank_elo,how='left',left_on=[w_l+'_id','date'],right_on=['player_id','date']).drop('player_id',axis=1)
+        self.new_df=surface_indoor_rank_elo.merge(self.new_df,how='inner',on='match_id').drop('player_id',axis=1)
 
     def compute_elo_ranking_surface_indoor(self):
         extract_data=ExtractData()
@@ -210,5 +214,8 @@ class Transformation():
     def get_dataframe(self):
         self.clean()
         return self.new_df
+
+
+
 
 
