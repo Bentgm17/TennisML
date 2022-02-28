@@ -121,7 +121,7 @@ class Transformation():
         self.add_percentage_condition('w_sv_ip_w','l_sv_ip_w')
 
     def compute_points_lost_per_serv_game(self):
-        self.new_df['w_pl_game'],self.new_df['l_pl_game']=(self.df['w_sv_pt']-self.df['w_1st_won']-self.df['w_2nd_won'])/self.df['w_sv_gms'],(self.df['l_sv_pt']-self.df['l_1st_won']-self.df['l_2nd_won'])/self.df['l_sv_gms']
+        self.new_df['w_ploss_game'],self.new_df['l_ploss_game']=(self.df['w_sv_pt']-self.df['w_1st_won']-self.df['w_2nd_won'])/self.df['w_sv_gms'],(self.df['l_sv_pt']-self.df['l_1st_won']-self.df['l_2nd_won'])/self.df['l_sv_gms']
 
     def compute_break_points_faced_per_game(self):
         self.new_df['w_bpf_game'],self.new_df['l_bpf_game']=self.df['w_bp_fc']/self.df['w_sv_gms'],self.df['l_bp_fc']/self.df['l_sv_gms']
@@ -141,7 +141,7 @@ class Transformation():
         self.add_percentage_condition('w_r_ip_w','l_r_ip_w')
 
     def compute_points_won_per_return_game(self):
-        self.new_df['w_pwon_r_game'],self.new_df['l_pwon_r_game']=self.new_df['l_pl_game'],self.new_df['w_pl_game']
+        self.new_df['w_pwon_r_game'],self.new_df['l_pwon_r_game']=self.new_df['l_ploss_game'],self.new_df['w_ploss_game']
 
     def compute_bp_per_game(self):
         self.new_df['w_bp_game'],self.new_df['l_bp_game']=self.new_df['l_bpf_game'],self.new_df['w_bpf_game']
@@ -196,7 +196,7 @@ class Transformation():
         
     def compute_rank_elo(self,extract_data,w_l):
         l_elo_df=extract_data.get_elo_rating(self.df[['match_id',w_l+'_id','date','surface','indoor']].rename(columns={w_l+"_id": "player_id"}))
-        surface_indoor_rank_elo=self.compute_corresponding_rank_elo_rating(l_elo_df,w_l)
+        surface_indoor_rank_elo=self.compute_corresponding_rank_elo_rating(l_elo_df,w_l).drop('date',axis=1)
         self.new_df=surface_indoor_rank_elo.merge(self.new_df,how='inner',on='match_id').drop('player_id',axis=1)
 
     def compute_elo_ranking_surface_indoor(self):
