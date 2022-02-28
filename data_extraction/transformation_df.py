@@ -1,5 +1,10 @@
+from re import S
+from unicodedata import name
 import pandas as pd
-import docker_extract
+from docker_extract import ExtractData
+import os
+import numpy as np
+from tqdm import tqdm
 
 class Transformation():
 
@@ -9,7 +14,11 @@ class Transformation():
         self.new_df_cond=[]
     
     def __call__(self):
-        self.copy_match_id(),self.compute_ace(),self.compute_df(),self.compute_total_points(),self.compute_points_won_on_serve()
+        self.correct_wrong_rows()
+        self.copy_match_and_playerid()
+        self.compute_elo_ranking_surface_indoor()
+        self.compute_ace()
+        self.compute_df(),self.compute_total_points(),self.compute_points_won_on_serve()
         self.compute_points_won_on_first_serve(),self.compute_points_won_on_second_serve(),self.compute_break_points_saved()
         self.compute_return_points_won_on_return_first_serve(),self.compute_return_points_won_on_return_second_serve()
         self.compute_break_points_won(),self.compute_return_points_won(),self.compute_point_dominance()
@@ -27,8 +36,11 @@ class Transformation():
          self.new_df_cond.append(self.new_df[column1].between(0, 1))
          self.new_df_cond.append(self.new_df[column2].between(0, 1))
 
-    def copy_match_id(self):
+    def copy_match_and_playerid(self):
         self.new_df['match_id']=self.df['match_id']
+        self.new_df['winner_id']=self.df['winner_id']
+        self.new_df['loser_id']=self.df['loser_id']
+        self.new_df['date']=pd.to_datetime(self.df['date'])
 
     def compute_ace(self):
         self.new_df['w_ace'],self.new_df['l_ace']=self.df['w_ace']/self.df['w_sv_pt'],self.df['l_ace']/self.df['l_sv_pt']
@@ -99,7 +111,7 @@ class Transformation():
         self.add_percentage_condition('w_df_2nd_sv','l_df_2nd_sv')
         
     def compute_aces_per_df(self):
-        self.new_df['w_ace_df_ratio'],self.new_df['l_ace_df_ratio']=self.df['w_ace']/self.df['w_df'],self.df['l_ace']/self.df['l_df']
+        self.new_df['w_ace_df_ratio'],self.new_df['l_ace_df_ratio']=(self.new_df['w_ace'] / self.new_df['w_df']).replace((np.nan,np.inf, -np.inf), (0,0,0)),(self.new_df['l_ace'] / self.new_df['l_df']).replace((np.nan,np.inf, -np.inf), (0,0,0))
 
     def compute_first_serve_efficiency(self):
         self.new_df['w_1st_sv_eff'],self.new_df['l_1st_sv_eff']=self.new_df['w_1st_w']/self.new_df['w_2nd_w'],self.new_df['l_1st_w']/self.new_df['l_2nd_w']
@@ -149,21 +161,49 @@ class Transformation():
         self.add_percentage_condition('w_gm_w','l_gm_w')
 
     def compute_game_dominance(self):
-        self.new_df['w_g_dominance'],self.new_df['l_g_dominance']=self.new_df['w_r_game_w']/self.new_df['l_r_game_w'],self.new_df['l_r_game_w']/self.new_df['w_r_game_w']
+        self.new_df['w_g_dominance'],self.new_df['l_g_dominance']=(self.new_df['w_r_game_w'] / self.new_df['l_r_game_w']).replace((np.nan,np.inf, -np.inf), (0,0,0)),(self.new_df['l_r_game_w'] / self.new_df['w_r_game_w']).replace((np.nan,np.inf, -np.inf), (0,0,0))
 
     def compute_break_ratio(self):
-        self.new_df['w_br_ratio'],self.new_df['l_br_ratio']=self.new_df['w_bp_w']/self.new_df['l_bp_w'],self.new_df['l_bp_w']/self.new_df['w_bp_w']
+        self.new_df['w_br_ratio'],self.new_df['l_br_ratio']=(self.new_df['w_bp_w'] / self.new_df['l_bp_w']).replace((np.nan,np.inf, -np.inf), (0,0,0)),(self.new_df['l_bp_w'] / self.new_df['w_bp_w']).replace((np.nan,np.inf, -np.inf), (0,0,0))
 
     def compute_winning_percentage(self):
         self.new_df['w_win_p']=1/(1+10**((self.df["loser_elo_rating"] - self.df['winner_elo_rating'])/400))
         self.new_df['l_win_p']=1-self.new_df['w_win_p']
         self.add_percentage_condition('w_win_p','l_win_p')
+    
+    def correct_wrong_rows(self):
+        df_dict=self.df.to_dict('records')
+        for i,row in enumerate(df_dict):
+            if df_dict[i]['w_1st_won']/df_dict[i]['w_1st_in']>1:
+                df_dict[i]['w_sv_pt'],df_dict[i]['w_1st_in'],df_dict[i]['w_1st_won'],df_dict[i]['w_2nd_won']=df_dict[i]['w_1st_won']+df_dict[i]['w_2nd_won'],df_dict[i]['w_1st_won'],df_dict[i]['w_1st_in'],df_dict[i]['w_sv_pt']-df_dict[i]['w_1st_in']
+                df_dict[i]['l_sv_pt'],df_dict[i]['l_1st_in'],df_dict[i]['l_1st_won'],df_dict[i]['l_2nd_won']=df_dict[i]['l_1st_won'],df_dict[i]['l_1st_in'],df_dict[i]['l_sv_pt']-df_dict[i]['l_1st_in'],df_dict[i]['l_1st_won']+df_dict[i]['l_2nd_won']
+        self.df=pd.DataFrame(df_dict)
+        return self.df
+
+    def map_columns(self,surface,indoor):
+        surface=surface.map({"G":"grass","H":"hard","C":"clay","P":"carpet"})
+        indoor=indoor.map({True:'indoor',False:'outdoor'})
+        return [surface+"_rank", surface+"_elo_rating",indoor+"_rank",indoor+"_elo_rating"]
+        
+    def compute_corresponding_rank_elo_rating(self,df,w_l):
+        w_l=w_l[0]
+        sf_rank, sf_elo, i_o_rank, i_o_elo_rank = ([] for i in range(4))
+        df_dict=df.to_dict('records')
+        surface_rank,surface_elo,indoor_rank,indoor_elo=self.map_columns(df['surface'],df['indoor'])
+        for i,row in enumerate(df_dict):
+            sf_rank.append(row[surface_rank[i]]),sf_elo.append(row[surface_elo[i]]),i_o_rank.append(row[indoor_rank[i]]),i_o_elo_rank.append(row[indoor_elo[i]])
+        return pd.DataFrame({'match_id':df['match_id'].copy(),'player_id':df['player_id'].copy(),'date':df['date'].copy(),w_l[0]+'_sf_rank':sf_rank,w_l+'_sf_elo':sf_elo,w_l+'_i_o_rank':i_o_rank,w_l+'_i_o_elo_rank':i_o_elo_rank})
+        
+    def compute_rank_elo(self,extract_data,w_l):
+        l_elo_df=extract_data.get_elo_rating(self.df[['match_id',w_l+'_id','date','surface','indoor']].rename(columns={w_l+"_id": "player_id"}))
+        surface_indoor_rank_elo=self.compute_corresponding_rank_elo_rating(l_elo_df,w_l)
+        self.new_df=surface_indoor_rank_elo.merge(self.new_df,how='inner',on='match_id').drop('player_id',axis=1)
 
     def compute_elo_ranking_surface_indoor(self):
-        self.df = self.df['surface'].map({'G':"grass", 'C':"clay", 'Cp':"carpet", 'H':"hard"})
-        self.df = self.df['indoor'].map({True : 'indoor', False : 'outdoor'})
-        self.new_df['w_sv_elo'],self.new_df['w_i_o_elo']=docker_extract.get_elo_rating(self.df[['winner_id','date','surface','indoor']])
-        self.new_df['w_sv_elo'],self.new_df['w_i_o_elo']=docker_extract.get_elo_rating(self.df[['loser_id','date','surface','indoor']])
+        extract_data=ExtractData()
+        self.df['date'] =  pd.to_datetime(self.df['date'])
+        self.compute_rank_elo(extract_data,'winner')
+        self.compute_rank_elo(extract_data,'loser')
 
     def clean(self):
         condition_df=pd.DataFrame([])
@@ -174,6 +214,8 @@ class Transformation():
     def get_dataframe(self):
         self.clean()
         return self.new_df
+
+
 
 
 
