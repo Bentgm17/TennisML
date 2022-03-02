@@ -79,16 +79,11 @@ class ExtractData():
         df = pd.read_sql_query("SELECT M.outcome,M.match_id,M.date,P1.first_name,P1.last_name,P2.first_name,P2.last_name from tcb.player P1, tcb.player P2, tcb.match M WHERE M.match_id={match_id} and P1.player_id=M.winner_id and P2.player_id=M.loser_id".format(match_id=match_id),con=self.conn)
         return df
 
-
     def get_elo_rating(self,df):
         df.to_sql('player_match_factors', self.conn,if_exists='replace')
         # print(df[df.duplicated(['winner_id', 'date'],keep=False)])
         result=pd.read_sql_query("SELECT PMF.match_id,PMF.surface,PMF.indoor,PMF.date,PER.* FROM tcb.player_elo_ranking PER, player_match_factors PMF WHERE PER.rank_date=PMF.date and PER.player_id=PMF.player_id",con=self.conn)  
         # print(result[result.duplicated(['winner_id', 'date'],keep=False)])
-        return result
-
-    def playerh2h(self):
-        result=pd.read_sql_query("SELECT * FROM tcb.player_h2h WHERE player_id=2434",con=self.conn)  
         return result
 
     def close_conn(self):
