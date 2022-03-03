@@ -59,7 +59,7 @@ w_ace
 - winner's number of aces
 w_df
 - winner's number of doubles faults
-w_svpt
+w_sv_pt
 - winner's number of serve points
 w_1stIn
 - winner's number of first serves made
@@ -67,7 +67,7 @@ w_1stWon
 - winner's number of first-serve points won
 w_2ndWon
 - winner's number of second-serve points won
-w_SvGms
+w_Sv_Gms
 - winner's number of serve games
 w_bpSaved
 - winner's number of break points saved
