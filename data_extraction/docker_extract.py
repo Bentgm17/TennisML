@@ -41,15 +41,6 @@ class ExtractData():
             a formatted string which represents the related adress
         """
         self.conn = create_engine('postgresql://postgres:postgres@localhost:5432/tcb')
-
-    # def conn_close(func):
-    #     def inner(self,*args, **kwargs):
-    #         try:
-    #             self.conn = self.conn.connect()
-    #             return func(self,*args, **kwargs)
-    #         finally:
-    #             self.close_conn()
-    #     return inner
     
     def gen_match_data(self,**kwargs):
         """
