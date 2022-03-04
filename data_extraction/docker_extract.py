@@ -62,8 +62,12 @@ class ExtractData():
 
         """
         values=",M.".join([i for i in kwargs["values"]]) if "values" in kwargs else "M.*,MS.*"
-        dates="date between '{}' and '{}'".format(kwargs["date"].split("->")[0],kwargs["date"].split("->")[1]) if "date" in kwargs else ""
+        dates="M.date between '{}' and '{}'".format(kwargs["date"].split("->")[0],kwargs["date"].split("->")[1]) if "date" in kwargs else ""
         df = pd.read_sql_query("SELECT TE.level,{values} from tcb.match M,tcb.match_stats MS,tcb.tournament_event TE WHERE M.match_id=MS.match_id and M.best_of=3 and M.tournament_event_id=TE.tournament_event_id and {dates}".format(values=values,dates=dates),con=self.conn)
+        df.dropna(how='all', axis=1, inplace=True)
+        df=df[df['outcome'] != "RET"]
+        df=df[(~df['surface'].isna()) | (~df['indoor'].isna())]
+        df.sort_values(by="date",inplace=True)
         return df
 
     def get_match_details(self,match_id):
