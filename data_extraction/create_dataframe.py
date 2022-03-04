@@ -3,10 +3,40 @@ import numpy as np
 from tqdm import tqdm
 import sys
 from random import getrandbits
+import os
 
 class computeDataframe:
+    """
+    Class to get from match based entries to player-point-in-time entries
+
+    ...
+
+    Attributes
+    ----------
+    df : pd.DataFrame
+       Dataframe with the matches as entry
+    i:int
+        Class counter to reduce computation time
+    columns:list
+        Get a list of all input variables
+    output_df: pd.Dataframe
+        Pandas dataframe with the final data
+
+    Methods
+    -------
+    __init__()
+        Initializes the class
+
+    """
 
     def __init__(self,df):
+        """
+        Initializes the class
+        Parameters
+        ----------
+        df:pd.Dataframe
+            The dataframe with entries of all matches
+        """
         self.df_dict=df.to_dict('records')
         self.i=0
         self.columns=["avg_"+record[2:] for record in self.df_dict[0] if 'w_' in record][4:]
@@ -40,6 +70,7 @@ class computeDataframe:
         for i in range(len(self.columns)):
             data_dict[self.columns[i]]=stats[i]
         return data_dict
+
     def get_averages(self,records,id):
         if records:
             w_l={0:'l_',1:'w_'}
@@ -48,79 +79,52 @@ class computeDataframe:
             elo_rankings,stats_matches=[stat[3] for stat in stats[-4:]],[stat[4:] for stat in stats]
             weigthed_stats=self.get_weighted_stats_matches(stats_matches)
             data_dict=self.transform_to_df(weigthed_stats)
-            rel_fitness=self.get_rel_fitness(elo_rankings)
-            if len(records)==8:
-                print(data_dict)
+            data_dict['rel_fitness']=self.get_rel_fitness(elo_rankings)
+            return data_dict
+        
+    def compute_surface_indoor_strength(self,surface_elo,indoor_elo,player_elo):
+        return (surface_elo/player_elo)-1,(indoor_elo/player_elo)-1
 
-                sys.exit()
-                print(records[0].keys())
-                print(weigthed_ranking)
-                sys.exit()
-        
-        
-        # stats_cols=[column for column in self.df.dict[0].keys()]
-        
+    def get_id_by_label(self,winner_id,loser_id,label):
+        if label:
+            return winner_id,loser_id
+        else:
+            return loser_id, winner_id
+
+    def get_prematch_rankings(self,row,w_l):
+        rank=row[w_l+'rank']
+        surface_strength,indoor_strength=self.compute_surface_indoor_strength(row[w_l+'sf_elo'],row[w_l+'i_o_elo_rank'],row[w_l+'elo_r'])
+        return rank,surface_strength,indoor_strength
     
+    def combine_dicts(self,p1_dict,p2_dict,label):
+        if label:
+            return {**{'p_1_'+k: v for k, v in p1_dict.items()}, **{'p_2_'+k: v for k, v in p2_dict.items()}}
+        else:
+            return {**{'p_1_'+k: v for k, v in p2_dict.items()}, **{'p_2_'+k: v for k, v in p1_dict.items()}}
 
+        
     def process_pre_match_data(self,row):
         label=bool(getrandbits(1))
         prev_rec_p1,prev_rec_p2=self.get_prev_records(row['winner_id'],row['loser_id'])
-        averages_p1=self.get_averages(prev_rec_p1,row['winner_id'])
-        averages_p2=self.get_averages(prev_rec_p2,row['loser_id'])
-        rank_winner,rank_loser=row['w_rank'],row['l_rank']
-        h2h,h2h_p=self.get_h2h(prev_rec_p1,row['loser_id'])
-        return h2h,h2h_p
+        p1_dict=self.get_averages(prev_rec_p1,row['winner_id'])
+        p2_dict=self.get_averages(prev_rec_p2,row['loser_id'])
+        if p1_dict is not None and p2_dict is not None:
+            p1_dict['rank'],p1_dict['sf_strength'],p1_dict['in_strength']=self.get_prematch_rankings(row,'w_')
+            p2_dict['rank'],p2_dict['sf_strength'],p2_dict['in_strength']=self.get_prematch_rankings(row,'l_')
+            h2h,h2h_p=self.get_h2h(prev_rec_p1,row['loser_id'])
+            ndict =  self.combine_dicts(p1_dict,p2_dict,label)
+            p1_id,p2_id=self.get_id_by_label(row['winner_id'],row['loser_id'],label)
+            full_dict={'match_id':row['match_id'],'date':row['date'],'label':int(label),'p1_id':p1_id,'p2_id':p2_id,'h2h':h2h,'h2h_p':h2h_p}
+            full_dict.update(ndict)
+            self.output_df=self.output_df.append(full_dict,ignore_index=True)
     
     def walkover(self):
-        for self.i,row in tqdm(enumerate(self.df_dict)):
-            result,result_p=self.process_pre_match_data(row)
+        for self.i,row in enumerate(tqdm(self.df_dict)):
+            self.process_pre_match_data(row)
+
+    def get_dataframe(self):
+        return self.output_df
             
 
-
-
-
-
-# class generateDataFrame():
-
-#     def __init__(self,groupdf,df):
-#         self.df=df
-#         self.df['h2h']=np.nan
-#         self.groupdf=groupdf
-
-#     def add_head_to_head(self):
-#         for name, group in tqdm(self.groupdf):
-#             for p2 in group['p2_id'].unique():
-#                 matches_list=group[group['p2_id']==p2]['match_id'].to_list()
-#         return self.df
-
-#     def get_h2h_results(self,p1_num,p2_num):
-#         player_df=self.get_group(p1_num)
-#         return player_df[player_df['p2_id']==p2_num]
-
-#     def get_group(self,group_num):
-#         return self.groupdf.get_group(group_num)
-
-# class computeDataframe():
-
-#     def __init__(self,df):
-#         self.df=df
-        
-
-#     def get_player_dataframe(self,w_l):
-#         stats_cols=[column for column in self.df.columns if w_l[0]+"_" in column]
-#         p2_w_l='loser' if w_l=='winner' else 'winner'
-#         columns=['match_id',w_l+'_id',p2_w_l+'_id','date']+stats_cols
-#         new_cols=['match_id','p1_id','p2_id','date']+[column[2:] for column in stats_cols]
-#         new_df=self.df[columns]
-#         new_df.columns=new_cols
-#         new_df['label']=1 if w_l=='winner' else 0
-#         return new_df
-
-#     def compute_players_dataframe(self):
-#         winner_df=self.get_player_dataframe('winner')
-#         loser_df=self.get_player_dataframe('loser')
-#         players_df=pd.concat([winner_df,loser_df]).sort_values(by='p1_id').reset_index(drop=True)
-#         groupby_df=players_df.sort_values('date').groupby('p1_id')
-#         return groupby_df
 
 
