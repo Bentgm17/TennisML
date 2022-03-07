@@ -5,6 +5,7 @@ from docker_extract import ExtractData
 import os
 import numpy as np
 from tqdm import tqdm
+import sys
 
 class Transformation():
     """
@@ -33,6 +34,8 @@ class Transformation():
         Copies old dataframe's match_id,winner_id,loser_id and date to new df
     compute_ace()
         Computation of the ace percentage of the winner and loser
+    compute_df()
+        Computation of the double fault percentage of the winner and loser
 
     """
 
@@ -421,6 +424,10 @@ class Transformation():
         for condition in self.new_df_cond:
             condition_df=condition_df.append(condition)
         self.new_df=self.new_df[condition_df.T.all(1)]
+        self.new_df.drop(['w_1st_in','l_1st_in','w_sv_gm_lset','l_sv_gm_lset','w_ace_set','l_ace_set','w_df_set','l_df_set','w_r_gm_w_set','l_r_gm_w_set','w_bp_set','l_bp_set','w_bpf_set','l_bpf_set'],axis=1,inplace=True)
+        self.new_df[~self.new_df.isin([np.nan, np.inf, -np.inf]).any(1)]
+        self.new_df.dropna(inplace=True)
+        self.new_df.sort_values(by=['date','match_id'])
 
     def get_dataframe(self):
         '''
