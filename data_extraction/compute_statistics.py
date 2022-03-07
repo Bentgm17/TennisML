@@ -83,6 +83,7 @@ class Transformation():
 
         """
         self.new_df_cond.append(self.new_df[column1].between(0, 1))
+        print(self.new_df[column1][self.new_df[column1].between(0, 1)== False])
         self.new_df_cond.append(self.new_df[column2].between(0, 1))
 
     def copy_match_and_playerid(self):
