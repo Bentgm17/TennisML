@@ -41,15 +41,6 @@ class ExtractData():
             a formatted string which represents the related adress
         """
         self.conn = create_engine('postgresql://postgres:postgres@localhost:5432/tcb')
-
-    # def conn_close(func):
-    #     def inner(self,*args, **kwargs):
-    #         try:
-    #             self.conn = self.conn.connect()
-    #             return func(self,*args, **kwargs)
-    #         finally:
-    #             self.close_conn()
-    #     return inner
     
     def gen_match_data(self,**kwargs):
         """
@@ -71,24 +62,23 @@ class ExtractData():
 
         """
         values=",M.".join([i for i in kwargs["values"]]) if "values" in kwargs else "M.*,MS.*"
-        dates="date between '{}' and '{}'".format(kwargs["date"].split("->")[0],kwargs["date"].split("->")[1]) if "date" in kwargs else ""
+        dates="M.date between '{}' and '{}'".format(kwargs["date"].split("->")[0],kwargs["date"].split("->")[1]) if "date" in kwargs else ""
         df = pd.read_sql_query("SELECT TE.level,{values} from tcb.match M,tcb.match_stats MS,tcb.tournament_event TE WHERE M.match_id=MS.match_id and M.best_of=3 and M.tournament_event_id=TE.tournament_event_id and {dates}".format(values=values,dates=dates),con=self.conn)
+        df.dropna(how='all', axis=1, inplace=True)
+        df=df[df['outcome'] != "RET"]
+        df=df[(~df['surface'].isna()) | (~df['indoor'].isna())]
+        df.sort_values(by="date",inplace=True)
         return df
 
     def get_match_details(self,match_id):
         df = pd.read_sql_query("SELECT M.outcome,M.match_id,M.date,P1.first_name,P1.last_name,P2.first_name,P2.last_name from tcb.player P1, tcb.player P2, tcb.match M WHERE M.match_id={match_id} and P1.player_id=M.winner_id and P2.player_id=M.loser_id".format(match_id=match_id),con=self.conn)
         return df
 
-
     def get_elo_rating(self,df):
         df.to_sql('player_match_factors', self.conn,if_exists='replace')
         # print(df[df.duplicated(['winner_id', 'date'],keep=False)])
         result=pd.read_sql_query("SELECT PMF.match_id,PMF.surface,PMF.indoor,PMF.date,PER.* FROM tcb.player_elo_ranking PER, player_match_factors PMF WHERE PER.rank_date=PMF.date and PER.player_id=PMF.player_id",con=self.conn)  
         # print(result[result.duplicated(['winner_id', 'date'],keep=False)])
-        return result
-
-    def playerh2h(self):
-        result=pd.read_sql_query("SELECT * FROM tcb.player_h2h WHERE player_id=2434",con=self.conn)  
         return result
 
     def close_conn(self):
