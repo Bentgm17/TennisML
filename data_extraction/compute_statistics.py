@@ -1,11 +1,14 @@
 from re import S
 from unicodedata import name
 import pandas as pd
+from sqlalchemy import column
 from docker_extract import ExtractData
 import os
 import numpy as np
 from tqdm import tqdm
 import sys
+import requests
+from bs4 import BeautifulSoup
 
 class Transformation():
     """
@@ -50,6 +53,7 @@ class Transformation():
         self.df=df
         self.new_df=pd.DataFrame([])
         self.new_df_cond=[]
+        self.extract_data=ExtractData()
     
     def __call__(self):
         """
@@ -70,7 +74,7 @@ class Transformation():
         self.compute_break_points_faced_per_set(),self.compute_service_games_won(),self.compute_sv_games_lost_per_set()
         self.compute_ip_return_points(),self.compute_points_won_per_return_game(),self.compute_bp_per_game()
         self.compute_bp_per_set(),self.compute_return_games_won(),self.compute_return_games_won_per_set()
-        self.compute_games_won(),self.compute_game_dominance(),self.compute_break_ratio(),self.compute_winning_percentage()
+        self.compute_games_won(),self.compute_game_dominance(),self.compute_break_ratio(),self.compute_winning_percentage(),self.clean(),self.get_odds()
 
     
     def add_percentage_condition(self,column1,column2):
@@ -146,7 +150,7 @@ class Transformation():
         '''
         Computation of the breakpoints saved percentage of the winner and loser
         '''
-        self.new_df['w_bp_save'],self.new_df['l_bp_save']=self.df['w_bp_sv']/self.df['w_bp_fc'],self.df['l_bp_sv']/self.df['l_bp_fc']
+        self.new_df['w_bp_save'],self.new_df['l_bp_save']=(self.df['w_bp_sv']/self.df['w_bp_fc']).fillna(0),(self.df['l_bp_sv']/self.df['l_bp_fc']).fillna(0)
         self.add_percentage_condition('w_bp_save','l_bp_save')
 
     def compute_return_points_won_on_return_first_serve(self):
@@ -154,7 +158,7 @@ class Transformation():
         Computation of the won on first return serve percentage of the winner and loser
         '''
         self.new_df['w_r_1st_w'],self.new_df['l_r_1st_w']=1-self.new_df['l_1st_w'],1-self.new_df['w_1st_w']
-        self.add_percentage_condition('w_bp_save','l_bp_save')
+        self.add_percentage_condition('w_r_1st_w','l_r_1st_w')
 
     def compute_return_points_won_on_return_second_serve(self):
         '''
@@ -349,7 +353,7 @@ class Transformation():
         '''
         df_dict=self.df.to_dict('records')
         for i,row in enumerate(df_dict):
-            if df_dict[i]['w_1st_won']/df_dict[i]['w_1st_in']>1:
+            if df_dict[i]['w_1st_won']/df_dict[i]['w_1st_in']>1 if df_dict[i]['w_1st_in'] != 0 else 0:
                 df_dict[i]['w_sv_pt'],df_dict[i]['w_1st_in'],df_dict[i]['w_1st_won'],df_dict[i]['w_2nd_won']=df_dict[i]['w_1st_won']+df_dict[i]['w_2nd_won'],df_dict[i]['w_1st_won'],df_dict[i]['w_1st_in'],df_dict[i]['w_sv_pt']-df_dict[i]['w_1st_in']
                 df_dict[i]['l_sv_pt'],df_dict[i]['l_1st_in'],df_dict[i]['l_1st_won'],df_dict[i]['l_2nd_won']=df_dict[i]['l_1st_won'],df_dict[i]['l_1st_in'],df_dict[i]['l_sv_pt']-df_dict[i]['l_1st_in'],df_dict[i]['l_1st_won']+df_dict[i]['l_2nd_won']
         self.df=pd.DataFrame(df_dict)
@@ -391,7 +395,7 @@ class Transformation():
             sf_rank.append(sf_elo.append(row[surface_elo[i]])),i_o_elo_rank.append(row[indoor_elo[i]])
         return pd.DataFrame({'match_id':df['match_id'].copy(),'player_id':df['player_id'].copy(),'date':df['date'].copy(),w_l+'_sf_elo':sf_elo,w_l+'_i_o_elo_rank':i_o_elo_rank})
         
-    def compute_rank_elo(self,extract_data,w_l):
+    def compute_rank_elo(self,w_l):
         '''
         Generate the rank/elo for all surfaces and indoor/outdoor for all matches of a specific player
         
@@ -402,18 +406,44 @@ class Transformation():
         w_l:String
             String to indicate winner of loser
         '''
-        l_elo_df=extract_data.get_elo_rating(self.df[['match_id',w_l+'_id','date','surface','indoor']].rename(columns={w_l+"_id": "player_id"}))
+        l_elo_df=self.extract_data.get_elo_rating(self.df[['match_id',w_l+'_id','date','surface','indoor']].rename(columns={w_l+"_id": "player_id"}))
         surface_indoor_rank_elo=self.compute_corresponding_rank_elo_rating(l_elo_df,w_l).drop('date',axis=1)
-        self.new_df=surface_indoor_rank_elo.merge(self.new_df,how='inner',on='match_id').drop('player_id',axis=1)
+        self.new_df=surface_indoor_rank_elo.merge(self.new_df,how='right',on='match_id').drop('player_id',axis=1)
+
+    def handle_nan(self):
+        self.new_df['w_sf_elo'],self.new_df['w_i_o_elo_rank'] = self.new_df['w_sf_elo'].fillna(self.new_df['w_elo_r']),self.new_df['w_i_o_elo_rank'].fillna(self.new_df['w_elo_r'])
+        self.new_df['l_sf_elo'],self.new_df['l_i_o_elo_rank'] = self.new_df['l_sf_elo'].fillna(self.new_df['l_elo_r']),self.new_df['l_i_o_elo_rank'].fillna(self.new_df['l_elo_r'])
 
     def compute_elo_ranking_surface_indoor(self):
         '''
         Attaches the function to compute rank/elo of all players in a moment of time in the past
         '''
-        extract_data=ExtractData()
         self.df['date'] =  pd.to_datetime(self.df['date'])
-        self.compute_rank_elo(extract_data,'winner')
-        self.compute_rank_elo(extract_data,'loser')
+        self.compute_rank_elo('winner')
+        self.compute_rank_elo('loser')
+        self.handle_nan()
+
+    def clean_odds(self,odds_df):
+        odds_df.columns=['date','winner','loser','w_odds','l_odds']
+        odds_df['date'] = pd.to_datetime(odds_df['date'])
+        odds_df.sort_values(by="date",inplace=True)
+        odds_df=odds_df.dropna()
+        odds_df['winner']=odds_df['winner'].map(lambda v: ' '.join(v.split(' ')[:-1]))
+        odds_df['loser']=odds_df['loser'].map(lambda v: ' '.join(v.split(' ')[:-1]))
+        return odds_df
+
+
+    def get_odds(self):
+        page = requests.get("http://www.tennis-data.co.uk/alldata.php")
+        odds_df=pd.DataFrame([])
+        soup = BeautifulSoup(page.content, 'html.parser')
+        links=[link["href"] for link in soup.select('a[href*=".xls"]') if "w" not in link["href"] and int(link['href'][:4])>2001]
+        for link in tqdm(links):
+            df=pd.read_excel('http://www.tennis-data.co.uk/'+link)[['Date','Winner','Loser','B365W','B365L']]
+            odds_df=odds_df.append(df)
+        cleaned_df=self.clean_odds(odds_df)
+        match_odd_df=self.extract_data.get_match_id(cleaned_df)
+        self.new_df=match_odd_df.merge(self.new_df,how='right',on='match_id')
 
     def clean(self):
         '''
@@ -432,7 +462,6 @@ class Transformation():
         '''
         Returns the dataframe with statistics
         '''
-        self.clean()
         return self.new_df
 
 
