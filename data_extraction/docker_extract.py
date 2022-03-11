@@ -63,7 +63,7 @@ class ExtractData():
         """
         values=",M.".join([i for i in kwargs["values"]]) if "values" in kwargs else "M.*,MS.*"
         dates="M.date between '{}' and '{}'".format(kwargs["date"].split("->")[0],kwargs["date"].split("->")[1]) if "date" in kwargs else ""
-        df = pd.read_sql_query("SELECT TE.level,{values} from tcb.match M,tcb.match_stats MS,tcb.tournament_event TE WHERE M.match_id=MS.match_id and M.best_of=3 and M.tournament_event_id=TE.tournament_event_id and {dates}".format(values=values,dates=dates),con=self.conn)
+        df = pd.read_sql_query("SELECT {values} from tcb.match M, tcb.match_stats MS WHERE M.match_id=MS.match_id and M.has_stats".format(values=values,dates=dates),con=self.conn)
         df.dropna(how='all', axis=1, inplace=True)
         df=df[df['outcome'] != "RET"]
         df=df[(~df['surface'].isna()) | (~df['indoor'].isna())]
@@ -76,9 +76,12 @@ class ExtractData():
 
     def get_elo_rating(self,df):
         df.to_sql('player_match_factors', self.conn,if_exists='replace')
-        # print(df[df.duplicated(['winner_id', 'date'],keep=False)])
         result=pd.read_sql_query("SELECT PMF.match_id,PMF.surface,PMF.indoor,PMF.date,PER.* FROM tcb.player_elo_ranking PER, player_match_factors PMF WHERE PER.rank_date=PMF.date and PER.player_id=PMF.player_id",con=self.conn)  
-        # print(result[result.duplicated(['winner_id', 'date'],keep=False)])
+        return result
+
+    def get_match_id(self,df):
+        df.to_sql('player_odds', self.conn,if_exists='replace')
+        result=pd.read_sql_query('SELECT M.match_id,po.w_odds,PO.l_odds FROM player_odds PO, tcb.match M, tcb.player P1, tcb.player P2 where M.date=PO.date and P1.player_id=winner_id and P2.player_id=loser_id and P1.last_name=PO.winner and P2.last_name=PO.loser',con=self.conn)  
         return result
 
     def close_conn(self):
