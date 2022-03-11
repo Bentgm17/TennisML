@@ -39,7 +39,7 @@ class computeDataframe:
         """
         self.df_dict=df.to_dict('records')
         self.i=0
-        self.columns=["avg_"+record[2:] for record in self.df_dict[0] if 'w_' in record][4:]
+        self.columns=["avg_"+record[2:] for record in self.df_dict[0] if 'w_' in record if record not in['w_odds','w_sf_elo','w_i_o_elo_rank','w_rank','w_elo_r']]
         self.output_df=pd.DataFrame([])
 
     def get_prev_records(self,winner_id,loser_id):
@@ -60,7 +60,7 @@ class computeDataframe:
         return [value for key, value in record.items() if won in key.lower()]
     
     def get_weighted_stats_matches(self,stats):
-        return np.mean(np.array(stats),axis=0)
+        return np.mean(np.array(stats[-5:]),axis=0)
     
     def get_rel_fitness(self,elo_rankings):
         return (elo_rankings[0]/elo_rankings[-1])-1
@@ -85,7 +85,7 @@ class computeDataframe:
     def compute_surface_indoor_strength(self,surface_elo,indoor_elo,player_elo):
         return (surface_elo/player_elo)-1,(indoor_elo/player_elo)-1
 
-    def get_id_by_label(self,winner_id,loser_id,label):
+    def get_feature_by_label(self,winner_id,loser_id,label):
         if label:
             return winner_id,loser_id
         else:
@@ -113,8 +113,9 @@ class computeDataframe:
             p2_dict['rank'],p2_dict['sf_strength'],p2_dict['in_strength']=self.get_prematch_rankings(row,'l_')
             h2h,h2h_p=self.get_h2h(prev_rec_p1,row['loser_id'])
             ndict =  self.combine_dicts(p1_dict,p2_dict,label)
-            p1_id,p2_id=self.get_id_by_label(row['winner_id'],row['loser_id'],label)
-            full_dict={'match_id':row['match_id'],'date':row['date'],'label':int(label),'p1_id':p1_id,'p2_id':p2_id,'h2h':h2h,'h2h_p':h2h_p}
+            p1_id,p2_id=self.get_feature_by_label(row['winner_id'],row['loser_id'],label)
+            p1_odd,p2_odd=self.get_feature_by_label(row['w_odds'],row['l_odds'],label)
+            full_dict={'match_id':row['match_id'],'date':row['date'],'label':int(label),'p1_id':p1_id,'p2_id':p2_id,'h2h':h2h,'h2h_p':h2h_p,'p1_odd':p1_odd,'p2_odd':p2_odd}
             full_dict.update(ndict)
             self.output_df=self.output_df.append(full_dict,ignore_index=True)
     
