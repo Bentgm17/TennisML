@@ -97,8 +97,10 @@ class Transformation():
         Copies old dataframe's match_id,winner_id,loser_id and date to new df.
         """
         self.new_df['match_id']=self.df['match_id']
+        self.new_df['tournament_id']=self.df['original_tournament_id']
         self.new_df['winner_id']=self.df['winner_id']
         self.new_df['loser_id']=self.df['loser_id']
+        self.new_df['surface']=self.df['surface']
         self.new_df['w_rank'],self.new_df['l_rank']=self.df['winner_rank'],self.df['loser_rank']
         self.new_df['w_elo_r'],self.new_df['l_elo_r']=self.df['winner_elo_rating'],self.df['loser_elo_rating']
         self.new_df['date']=pd.to_datetime(self.df['date'])
@@ -424,7 +426,7 @@ class Transformation():
         self.handle_nan()
 
     def clean_odds(self,odds_df):
-        odds_df.columns=['date','winner','loser','w_odds','l_odds']
+        odds_df.columns=['date','location','winner','loser','w_odds','l_odds']
         odds_df['date'] = pd.to_datetime(odds_df['date'])
         odds_df.sort_values(by="date",inplace=True)
         odds_df=odds_df.dropna()
@@ -434,13 +436,18 @@ class Transformation():
 
 
     def get_odds(self):
-        page = requests.get("http://www.tennis-data.co.uk/alldata.php")
-        odds_df=pd.DataFrame([])
-        soup = BeautifulSoup(page.content, 'html.parser')
-        links=[link["href"] for link in soup.select('a[href*=".xls"]') if "w" not in link["href"] and int(link['href'][:4])>2001]
-        for link in tqdm(links):
-            df=pd.read_excel('http://www.tennis-data.co.uk/'+link)[['Date','Winner','Loser','B365W','B365L']]
-            odds_df=odds_df.append(df)
+        parent_dir=os.path.dirname(os.getcwd())
+        if not os.path.exists(os.path.join(parent_dir,"TennisML/all_match_odds.csv")):
+            page = requests.get("http://www.tennis-data.co.uk/alldata.php")
+            odds_df=pd.DataFrame([])
+            soup = BeautifulSoup(page.content, 'html.parser')
+            links=[link["href"] for link in soup.select('a[href*=".xls"]') if "w" not in link["href"] and int(link['href'][:4])>2001]
+            for link in tqdm(links):
+                df=pd.read_excel('http://www.tennis-data.co.uk/'+link)[['Date','Location','Winner','Loser','B365W','B365L']]
+                odds_df=odds_df.append(df)
+            odds_df.to_csv('all_match_odds.csv')
+        else:
+            odds_df=pd.read_csv('all_match_odds.csv',index_col=0)
         cleaned_df=self.clean_odds(odds_df)
         match_odd_df=self.extract_data.get_match_id(cleaned_df)
         self.new_df=match_odd_df.merge(self.new_df,how='right',on='match_id')
