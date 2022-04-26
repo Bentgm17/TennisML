@@ -63,7 +63,7 @@ class ExtractData():
         """
         values=",M.".join([i for i in kwargs["values"]]) if "values" in kwargs else "M.*,MS.*"
         dates="M.date between '{}' and '{}'".format(kwargs["date"].split("->")[0],kwargs["date"].split("->")[1]) if "date" in kwargs else ""
-        df = pd.read_sql_query("SELECT {values} from tcb.match M, tcb.match_stats MS WHERE M.match_id=MS.match_id and M.has_stats".format(values=values,dates=dates),con=self.conn)
+        df = pd.read_sql_query("SELECT TE.original_tournament_id,{values} from tcb.match M, tcb.match_stats MS, tcb.tournament_event TE WHERE M.match_id=MS.match_id and M.tournament_event_id=TE.tournament_event_id and M.has_stats".format(values=values,dates=dates),con=self.conn)
         df.dropna(how='all', axis=1, inplace=True)
         df=df[df['outcome'] != "RET"]
         df=df[(~df['surface'].isna()) | (~df['indoor'].isna())]
@@ -71,7 +71,7 @@ class ExtractData():
         return df
 
     def get_match_details(self,match_id):
-        df = pd.read_sql_query("SELECT M.outcome,M.match_id,M.date,P1.first_name,P1.last_name,P2.first_name,P2.last_name from tcb.player P1, tcb.player P2, tcb.match M WHERE M.match_id={match_id} and P1.player_id=M.winner_id and P2.player_id=M.loser_id".format(match_id=match_id),con=self.conn)
+        df = pd.read_sql_query("SELECT TE.name,M.outcome,M.match_id,M.date,P1.first_name,P1.last_name,P1.first_name,P2.last_name from tcb.player P1, tcb.player P2,tcb.tournament_event TE, tcb.match M WHERE M.match_id={match_id} and M.tournament_event_id=TE.tournament_event_id and P1.player_id=M.winner_id and P2.player_id=M.loser_id".format(match_id=match_id),con=self.conn)
         return df
 
     def get_elo_rating(self,df):
@@ -81,7 +81,7 @@ class ExtractData():
 
     def get_match_id(self,df):
         df.to_sql('player_odds', self.conn,if_exists='replace')
-        result=pd.read_sql_query('SELECT M.match_id,po.w_odds,PO.l_odds FROM player_odds PO, tcb.match M, tcb.player P1, tcb.player P2 where M.date=PO.date and P1.player_id=winner_id and P2.player_id=loser_id and P1.last_name=PO.winner and P2.last_name=PO.loser',con=self.conn)  
+        result=pd.read_sql_query("SELECT M.match_id,po.w_odds,PO.l_odds FROM player_odds PO, tcb.match M, tcb.player P1, tcb.player P2, tcb.tournament_event TE where  M.tournament_event_id=TE.tournament_event_id and PO.location ~ TE.name and date_part('year',M.date)=date_part('year',PO.date) and P1.player_id=winner_id and P2.player_id=loser_id and P1.last_name=PO.winner and P2.last_name=PO.loser",con=self.conn)  
         return result
 
     def close_conn(self):
